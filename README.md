@@ -2,7 +2,7 @@
 
 A Streamlit app for detecting invasive Mediterranean crabs (*Percnon gibbesi*) using YOLOv12.
 
-## 🚀 [Live Demo](your-streamlit-app-url-here)
+## 🚀 [Live Demo](https://percnon-detector.streamlit.app/)
 
 ## Features
 - **Single Image Detection**: Upload and analyze individual images
@@ -11,7 +11,7 @@ A Streamlit app for detecting invasive Mediterranean crabs (*Percnon gibbesi*) u
 - **Real-time Confidence Adjustment**: Fine-tune detection sensitivity
 
 ## How to Use
-1. Visit the [live app](your-app-url)
+1. Visit the [live app](https://percnon-detector.streamlit.app/)
 2. Upload underwater images
 3. Adjust confidence threshold as needed
 4. Download detection results in your preferred format
