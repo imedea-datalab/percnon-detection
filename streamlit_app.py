@@ -244,7 +244,7 @@ def main():
             
             with col1:
                 st.subheader("Original Image")
-                st.image(image, use_container_width=True)
+                st.image(image, width="stretch")
             
             with col2:
                 st.subheader("Detection Results")
@@ -256,7 +256,7 @@ def main():
                         image_np, results, conf_threshold
                     )
                 
-                st.image(annotated_image, use_container_width=True)
+                st.image(annotated_image, width="stretch")
             
             # Results summary
             st.markdown("---")
@@ -305,28 +305,24 @@ def main():
                 df = pd.DataFrame(detections)
                 df.index = df.index + 1
                 df.index.name = "Detection #"
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width="stretch")
                 
                 # Download options
                 st.subheader("📥 Download Annotations")
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    # COCO JSON format
-                    coco_data = create_coco_annotation(
-                        detections, 
-                        uploaded_file.name, 
-                        image.width, 
-                        image.height
-                    )
-                    coco_json = json.dumps(coco_data, indent=2)
-                    
+                    # Prepare image bytes for download (preserve original format)
+                    img_buffer = io.BytesIO()
+                    image.save(img_buffer, format=image.format or 'PNG')
+                    img_buffer.seek(0)
+
                     st.download_button(
-                        label="📄 Download COCO JSON",
-                        data=coco_json,
-                        file_name=f"{uploaded_file.name.split('.')[0]}_coco.json",
-                        mime="application/json",
-                        help="COCO format for Roboflow upload"
+                        label="🖼️ Download Image",
+                        data=img_buffer.getvalue(),
+                        file_name=uploaded_file.name,
+                        mime=uploaded_file.type if hasattr(uploaded_file, 'type') else 'image/png',
+                        help="Download the original uploaded image (orientation normalized)"
                     )
                 
                 with col2:
@@ -377,6 +373,9 @@ def main():
                 image = Image.open(uploaded_file)
                 image_np = np.array(image)
                 
+                # save the image
+                image.save(f"{uploaded_file.name}")
+                
                 results = detect_crabs(model, image_np)
                 _, detections = draw_detections(image_np, results, conf_threshold)
                 
@@ -400,110 +399,64 @@ def main():
             # Display batch results
             st.subheader("📊 Batch Processing Results")
             df = pd.DataFrame(batch_results)
+                        
+        
+            st.dataframe(df, width="stretch")
             
-            col1, col2 = st.columns(2)
+            # Download results CSV
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📊 Download Results CSV",
+                data=csv,
+                file_name=f"crab_detection_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
             
-            with col1:
-                st.dataframe(df, use_container_width=True)
-                
-                # Download results CSV
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📊 Download Results CSV",
-                    data=csv,
-                    file_name=f"crab_detection_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-                
-                # Download batch annotations
-                st.subheader("📥 Download Batch Annotations")
-                
-                # Create ZIP file with all annotations
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                    
-                    # Add COCO JSON files for each image
-                    for filename, data in batch_annotations.items():
-                        if data['detections']:  # Only include images with detections
-                            coco_data = create_coco_annotation(
-                                data['detections'],
-                                filename,
-                                data['width'],
-                                data['height']
-                            )
-                            coco_json = json.dumps(coco_data, indent=2)
-                            zip_file.writestr(f"coco_{filename.split('.')[0]}.json", coco_json)
-                    
-                    # Add YOLO format files
-                    for filename, data in batch_annotations.items():
-                        if data['detections']:  # Only include images with detections
-                            yolo_data = create_yolo_annotation(
-                                data['detections'],
-                                data['width'],
-                                data['height']
-                            )
-                            zip_file.writestr(f"yolo_{filename.split('.')[0]}.txt", yolo_data)
-                    
-                    # Add combined COCO JSON for all images
-                    combined_coco = {
-                        "images": [],
-                        "annotations": [],
-                        "categories": [{"id": 1, "name": "crab", "supercategory": "animal"}]
-                    }
-                    
-                    annotation_id = 1
-                    for image_id, (filename, data) in enumerate(batch_annotations.items(), 1):
-                        if data['detections']:
-                            # Add image info
-                            combined_coco["images"].append({
-                                "id": image_id,
-                                "file_name": filename,
-                                "width": data['width'],
-                                "height": data['height']
-                            })
-                            
-                            # Add annotations
-                            for detection in data['detections']:
-                                x1, y1, x2, y2 = detection['bbox']
-                                width = x2 - x1
-                                height = y2 - y1
-                                
-                                combined_coco["annotations"].append({
-                                    "id": annotation_id,
-                                    "image_id": image_id,
-                                    "category_id": 1,
-                                    "bbox": [x1, y1, width, height],
-                                    "area": width * height,
-                                    "iscrowd": 0,
-                                    "confidence": detection['confidence']
-                                })
-                                annotation_id += 1
-                    
-                    combined_json = json.dumps(combined_coco, indent=2)
-                    zip_file.writestr("combined_coco_annotations.json", combined_json)
-                
-                zip_buffer.seek(0)
-                
-                st.download_button(
-                    label="🗜️ Download All Annotations (ZIP)",
-                    data=zip_buffer.getvalue(),
-                    file_name=f"batch_annotations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                    mime="application/zip",
-                    help="ZIP file containing COCO JSON and YOLO format annotations for all images"
-                )
+            # Download batch annotations and images as ZIP
+            st.subheader("📥 Download Batch Annotations & Images")
+
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Add original images and YOLO files for images with detections
+                for filename, data in batch_annotations.items():
+                    # Add the original image file into the ZIP
+                    try:
+                        # `uploaded_files` contains UploadedFile objects; try to find the matching one
+                        matching = next((f for f in uploaded_files if f.name == filename), None)
+                        if matching is not None:
+                            try:
+                                # Try to normalize orientation via PIL and write corrected bytes
+                                img = Image.open(filename)
+                                out_buf = io.BytesIO()
+                                img.save(out_buf, format=img.format or 'PNG')
+                                out_buf.seek(0)
+                                zip_file.writestr(f"{filename}", out_buf.getvalue())
+                            except Exception:
+                                # Fallback: write original bytes
+                                file_bytes = matching.getvalue()
+                                zip_file.writestr(f"{filename}", file_bytes)
+                    except Exception:
+                        # Fallback: skip image if we can't retrieve bytes
+                        pass
+
+                    if data['detections']:
+                        yolo_data = create_yolo_annotation(
+                            data['detections'],
+                            data['width'],
+                            data['height']
+                        )
+                        zip_file.writestr(f"{filename.split('.')[0]}.txt", yolo_data)
+
+            zip_buffer.seek(0)
+
+            st.download_button(
+                label="🗜️ Download Images + YOLO Annotations (ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name=f"batch_images_annotations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                mime="application/zip",
+                help="ZIP file containing original images and YOLO annotations for images with detections"
+            )
             
-            with col2:
-                # Summary statistics
-                fig = px.bar(
-                    df, 
-                    x='filename', 
-                    y='crab_count',
-                    title="Crab Count per Image",
-                    color='crab_count',
-                    color_continuous_scale='viridis'
-                )
-                fig.update_layout(xaxis_tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
     
     elif mode == "Live Video":
         st.markdown('<h2 style="text-align: center;">🎥 Live Video Detection</h2>', unsafe_allow_html=True)
