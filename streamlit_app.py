@@ -13,25 +13,6 @@ import base64
 import json
 import zipfile
 import os
-<<<<<<< HEAD
-import sahi
-import hashlib
-from sahi import AutoDetectionModel
-from sahi.predict import get_sliced_prediction
-
-if "batch_key" not in st.session_state:
-    st.session_state.batch_key = None
-
-if "image_summary_df" not in st.session_state:
-    st.session_state.image_summary_df = None
-
-if "crab_summary_df" not in st.session_state:
-    st.session_state.crab_summary_df = None
-
-if "batch_predictions_zip" not in st.session_state:
-    st.session_state.batch_predictions_zip = None
-=======
->>>>>>> main
 
 # Page configuration
 st.set_page_config(
@@ -69,28 +50,6 @@ st.markdown("""
 
 @st.cache_resource
 def load_model():
-<<<<<<< HEAD
-    try:
-        from huggingface_hub import hf_hub_download
-
-        with st.spinner("📥 Downloading model from Hugging Face..."):
-            model_path = hf_hub_download(
-                repo_id="roberalcaraz/percnon-detector",
-                filename="percnon-detector-model.pt",
-                cache_dir="./model_cache"
-            )
-
-            model = AutoDetectionModel.from_pretrained(
-                model_type="ultralytics",
-                model_path=model_path,
-                confidence_threshold=0.5,
-                device="cuda" if torch.cuda.is_available() else "cpu"
-            )
-
-            st.success("✅ Model loaded successfully!")
-            return model
-
-=======
     """Load the trained YOLO model from Hugging Face"""
     try:
         from huggingface_hub import hf_hub_download
@@ -112,90 +71,20 @@ def load_model():
     except ImportError:
         st.error("❌ huggingface_hub not installed. Install with: pip install huggingface_hub")
         return None
->>>>>>> main
     except Exception as e:
         st.error(f"❌ Error loading model: {e}")
         return None
 
 def detect_crabs(model, image):
-<<<<<<< HEAD
-    """Run crab detection with SAHI"""
-    try:
-        results = get_sliced_prediction(
-            image,
-            model,
-
-            # tamaño del tile
-            slice_height=1280,
-            slice_width=1280,
-
-            # solape
-            overlap_height_ratio=0.5,
-            overlap_width_ratio=0.5
-        )
-
-        return results
-
-=======
     """Run crab detection on image"""
     try:
         results = model(image)
         return results
->>>>>>> main
     except Exception as e:
         st.error(f"Error during detection: {e}")
         return None
 
 def draw_detections(image, results, conf_threshold=0.5):
-<<<<<<< HEAD
-    if results is None:
-        return image, []
-
-    annotated_image = image.copy()
-    detections = []
-
-    for pred in results.object_prediction_list:
-
-        confidence = pred.score.value
-
-        if confidence >= conf_threshold:
-
-            x1 = int(pred.bbox.minx)
-            y1 = int(pred.bbox.miny)
-            x2 = int(pred.bbox.maxx)
-            y2 = int(pred.bbox.maxy)
-
-            cv2.rectangle(
-                annotated_image,
-                (x1, y1),
-                (x2, y2),
-                (255, 0, 0),
-                10
-            )
-
-            label = f"Crab {confidence:.2f}"
-
-            cv2.putText(
-                annotated_image,
-                label,
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                4,
-                (255, 0, 0),
-                10
-            )
-
-            detections.append({
-                "bbox": [x1, y1, x2, y2],
-                "confidence": confidence,
-                "area": (x2 - x1) * (y2 - y1)
-            })
-
-    return annotated_image, detections
-
-
-=======
->>>>>>> main
     """Draw bounding boxes on image"""
     if results is None:
         return image, []
@@ -271,20 +160,6 @@ def create_coco_annotation(detections, image_filename, image_width, image_height
     
     return coco_data
 
-<<<<<<< HEAD
-def make_batch_key(uploaded_files, conf_threshold):
-    parts = [str(conf_threshold)]
-
-    for f in uploaded_files:
-        parts.append(f.name)
-        parts.append(str(f.size))
-
-    joined = "|".join(parts)
-
-    return hashlib.md5(joined.encode()).hexdigest()
-
-=======
->>>>>>> main
 def create_yolo_annotation(detections, image_width, image_height):
     """Create YOLO format annotation (normalized coordinates)"""
     yolo_lines = []
@@ -486,213 +361,6 @@ def main():
             type=['png', 'jpg', 'jpeg'],
             accept_multiple_files=True
         )
-<<<<<<< HEAD
-
-        if uploaded_files:
-
-            current_key = make_batch_key(
-                uploaded_files,
-                conf_threshold
-            )
-
-            if st.session_state.batch_key != current_key:
-
-                st.write(f"Processing {len(uploaded_files)} images...")
-
-                batch_results = []
-                crab_results = []
-                batch_annotations = {}
-                prediction_images = {}
-
-                progress_bar = st.progress(0)
-
-                for i, uploaded_file in enumerate(uploaded_files):
-                    image = Image.open(uploaded_file)
-                    image_np = np.array(image)
-
-                    image.save(f"{uploaded_file.name}")
-
-                    results = detect_crabs(model, image_np)
-
-                    annotated_image, detections = draw_detections(
-                        image_np,
-                        results,
-                        conf_threshold
-                    )
-
-                    prediction_images[uploaded_file.name] = annotated_image
-
-                    batch_results.append({
-                        'filename': uploaded_file.name,
-                        'crab_count': len(detections),
-                        'avg_confidence': np.mean([d['confidence'] for d in detections]) if detections else 0,
-                        'max_confidence': max([d['confidence'] for d in detections]) if detections else 0
-                    })
-
-                    for detection in detections:
-                        x1, y1, x2, y2 = detection["bbox"]
-
-                        bbox_width = x2 - x1
-                        bbox_height = y2 - y1
-                        bbox_area = bbox_width * bbox_height
-
-                        crab_results.append({
-                            "filename": uploaded_file.name,
-                            "confidence": detection["confidence"],
-                            "bbox_area": bbox_area,
-                            "bbox_width": bbox_width,
-                            "bbox_height": bbox_height
-                        })
-
-                    batch_annotations[uploaded_file.name] = {
-                        'detections': detections,
-                        'width': image.width,
-                        'height': image.height
-                    }
-
-                    progress_bar.progress((i + 1) / len(uploaded_files))
-
-                st.session_state.images_df = pd.DataFrame(batch_results)
-                st.session_state.crabs_df = pd.DataFrame(crab_results)
-                st.session_state.batch_annotations = batch_annotations
-
-                pred_zip_buffer = io.BytesIO()
-
-                with zipfile.ZipFile(
-                    pred_zip_buffer,
-                    "w",
-                    zipfile.ZIP_DEFLATED
-                ) as zip_file:
-
-                    for filename, img_array in prediction_images.items():
-
-                        img_pil = Image.fromarray(img_array)
-
-                        img_buffer = io.BytesIO()
-
-                        ext = filename.split(".")[-1].upper()
-
-                        if ext == "JPG":
-                            ext = "JPEG"
-
-                        img_pil.save(
-                            img_buffer,
-                            format=ext if ext in ["PNG", "JPEG"] else "PNG"
-                        )
-
-                        img_buffer.seek(0)
-
-                        zip_file.writestr(
-                            filename,
-                            img_buffer.getvalue()
-                        )
-
-                pred_zip_buffer.seek(0)
-
-                st.session_state.batch_predictions_zip = pred_zip_buffer.getvalue()
-
-                st.session_state.batch_key = current_key
-
-            st.subheader("📊 Batch Processing Results")
-
-            summary_view = st.radio(
-                "Choose summary",
-                ["Images Summary", "Crabs Summary"],
-                horizontal=True
-            )
-
-            if summary_view == "Images Summary":
-                st.dataframe(
-                    st.session_state.images_df,
-                    width="stretch"
-                )
-            else:
-                st.dataframe(
-                    st.session_state.crabs_df,
-                    width="stretch"
-                )
-
-            st.subheader("📥 Download CSV Results")
-
-            col1, col2 = st.columns(2)
-
-            images_csv = st.session_state.images_df.to_csv(index=False)
-            crabs_csv = st.session_state.crabs_df.to_csv(index=False)
-
-            with col1:
-                st.download_button(
-                    label="📊 Download Images Summary CSV",
-                    data=images_csv,
-                    file_name=f"images_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-
-            with col2:
-                st.download_button(
-                    label="🦀 Download Crabs Summary CSV",
-                    data=crabs_csv,
-                    file_name=f"crabs_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-
-            st.subheader("📥 Download Batch Annotations & Images")
-
-            zip_buffer = io.BytesIO()
-
-            with zipfile.ZipFile(
-                zip_buffer,
-                'w',
-                zipfile.ZIP_DEFLATED
-            ) as zip_file:
-
-                for filename, data in st.session_state.batch_annotations.items():
-
-                    try:
-                        matching = next(
-                            (f for f in uploaded_files if f.name == filename),
-                            None
-                        )
-
-                        if matching is not None:
-                            try:
-                                img = Image.open(filename)
-
-                                out_buf = io.BytesIO()
-
-                                img.save(
-                                    out_buf,
-                                    format=img.format or 'PNG'
-                                )
-
-                                out_buf.seek(0)
-
-                                zip_file.writestr(
-                                    filename,
-                                    out_buf.getvalue()
-                                )
-
-                            except Exception:
-                                zip_file.writestr(
-                                    filename,
-                                    matching.getvalue()
-                                )
-
-                    except Exception:
-                        pass
-
-                    if data["detections"]:
-
-                        yolo_data = create_yolo_annotation(
-                            data["detections"],
-                            data["width"],
-                            data["height"]
-                        )
-
-                        zip_file.writestr(
-                            f"{filename.split('.')[0]}.txt",
-                            yolo_data
-                        )
-=======
         
         if uploaded_files:
             st.write(f"Processing {len(uploaded_files)} images...")
@@ -778,7 +446,6 @@ def main():
                             data['height']
                         )
                         zip_file.writestr(f"{filename.split('.')[0]}.txt", yolo_data)
->>>>>>> main
 
             zip_buffer.seek(0)
 
@@ -789,17 +456,6 @@ def main():
                 mime="application/zip",
                 help="ZIP file containing original images and YOLO annotations for images with detections"
             )
-<<<<<<< HEAD
-
-            st.download_button(
-                label="📦 Download Predictions (ZIP)",
-                data=st.session_state.batch_predictions_zip,
-                file_name=f"batch_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                mime="application/zip",
-                help="ZIP with images including predicted bounding boxes"
-            )
-=======
->>>>>>> main
             
     
     elif mode == "Live Video":
