@@ -13,7 +13,6 @@ import base64
 import json
 import zipfile
 import os
-<<<<<<< HEAD
 import sahi
 import hashlib
 from sahi import AutoDetectionModel
@@ -30,8 +29,6 @@ if "crab_summary_df" not in st.session_state:
 
 if "batch_predictions_zip" not in st.session_state:
     st.session_state.batch_predictions_zip = None
-=======
->>>>>>> main
 
 # Page configuration
 st.set_page_config(
@@ -69,7 +66,6 @@ st.markdown("""
 
 @st.cache_resource
 def load_model():
-<<<<<<< HEAD
     try:
         from huggingface_hub import hf_hub_download
 
@@ -90,35 +86,11 @@ def load_model():
             st.success("✅ Model loaded successfully!")
             return model
 
-=======
-    """Load the trained YOLO model from Hugging Face"""
-    try:
-        from huggingface_hub import hf_hub_download
-        
-        # Show loading message
-        with st.spinner("📥 Downloading model from Hugging Face... (first time only)"):
-            # Download model from Hugging Face Hub
-            model_path = hf_hub_download(
-                repo_id="roberalcaraz/percnon-detector",  # ✅ Your actual repo
-                filename="percnon-detector-model.pt",     # ✅ Your actual filename
-                cache_dir="./model_cache"
-            )
-            
-            # Load YOLO model
-            model = YOLO(model_path)
-            st.success("✅ Model loaded successfully!")
-            return model
-            
-    except ImportError:
-        st.error("❌ huggingface_hub not installed. Install with: pip install huggingface_hub")
-        return None
->>>>>>> main
     except Exception as e:
         st.error(f"❌ Error loading model: {e}")
         return None
 
 def detect_crabs(model, image):
-<<<<<<< HEAD
     """Run crab detection with SAHI"""
     try:
         results = get_sliced_prediction(
@@ -130,24 +102,17 @@ def detect_crabs(model, image):
             slice_width=1280,
 
             # solape
-            overlap_height_ratio=0.5,
-            overlap_width_ratio=0.5
+            overlap_height_ratio=0.2,
+            overlap_width_ratio=0.2
         )
 
         return results
 
-=======
-    """Run crab detection on image"""
-    try:
-        results = model(image)
-        return results
->>>>>>> main
     except Exception as e:
         st.error(f"Error during detection: {e}")
         return None
 
 def draw_detections(image, results, conf_threshold=0.5):
-<<<<<<< HEAD
     if results is None:
         return image, []
 
@@ -194,8 +159,6 @@ def draw_detections(image, results, conf_threshold=0.5):
     return annotated_image, detections
 
 
-=======
->>>>>>> main
     """Draw bounding boxes on image"""
     if results is None:
         return image, []
@@ -271,7 +234,6 @@ def create_coco_annotation(detections, image_filename, image_width, image_height
     
     return coco_data
 
-<<<<<<< HEAD
 def make_batch_key(uploaded_files, conf_threshold):
     parts = [str(conf_threshold)]
 
@@ -283,8 +245,6 @@ def make_batch_key(uploaded_files, conf_threshold):
 
     return hashlib.md5(joined.encode()).hexdigest()
 
-=======
->>>>>>> main
 def create_yolo_annotation(detections, image_width, image_height):
     """Create YOLO format annotation (normalized coordinates)"""
     yolo_lines = []
@@ -486,7 +446,6 @@ def main():
             type=['png', 'jpg', 'jpeg'],
             accept_multiple_files=True
         )
-<<<<<<< HEAD
 
         if uploaded_files:
 
@@ -692,93 +651,6 @@ def main():
                             f"{filename.split('.')[0]}.txt",
                             yolo_data
                         )
-=======
-        
-        if uploaded_files:
-            st.write(f"Processing {len(uploaded_files)} images...")
-            
-            batch_results = []
-            batch_annotations = {}  # Store annotations for each image
-            progress_bar = st.progress(0)
-            
-            for i, uploaded_file in enumerate(uploaded_files):
-                image = Image.open(uploaded_file)
-                image_np = np.array(image)
-                
-                # save the image
-                image.save(f"{uploaded_file.name}")
-                
-                results = detect_crabs(model, image_np)
-                _, detections = draw_detections(image_np, results, conf_threshold)
-                
-                # Store batch results
-                batch_results.append({
-                    'filename': uploaded_file.name,
-                    'crab_count': len(detections),
-                    'avg_confidence': np.mean([d['confidence'] for d in detections]) if detections else 0,
-                    'max_confidence': max([d['confidence'] for d in detections]) if detections else 0
-                })
-                
-                # Store annotations for download
-                batch_annotations[uploaded_file.name] = {
-                    'detections': detections,
-                    'width': image.width,
-                    'height': image.height
-                }
-                
-                progress_bar.progress((i + 1) / len(uploaded_files))
-            
-            # Display batch results
-            st.subheader("📊 Batch Processing Results")
-            df = pd.DataFrame(batch_results)
-                        
-        
-            st.dataframe(df, width="stretch")
-            
-            # Download results CSV
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📊 Download Results CSV",
-                data=csv,
-                file_name=f"crab_detection_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
-            
-            # Download batch annotations and images as ZIP
-            st.subheader("📥 Download Batch Annotations & Images")
-
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # Add original images and YOLO files for images with detections
-                for filename, data in batch_annotations.items():
-                    # Add the original image file into the ZIP
-                    try:
-                        # `uploaded_files` contains UploadedFile objects; try to find the matching one
-                        matching = next((f for f in uploaded_files if f.name == filename), None)
-                        if matching is not None:
-                            try:
-                                # Try to normalize orientation via PIL and write corrected bytes
-                                img = Image.open(filename)
-                                out_buf = io.BytesIO()
-                                img.save(out_buf, format=img.format or 'PNG')
-                                out_buf.seek(0)
-                                zip_file.writestr(f"{filename}", out_buf.getvalue())
-                            except Exception:
-                                # Fallback: write original bytes
-                                file_bytes = matching.getvalue()
-                                zip_file.writestr(f"{filename}", file_bytes)
-                    except Exception:
-                        # Fallback: skip image if we can't retrieve bytes
-                        pass
-
-                    if data['detections']:
-                        yolo_data = create_yolo_annotation(
-                            data['detections'],
-                            data['width'],
-                            data['height']
-                        )
-                        zip_file.writestr(f"{filename.split('.')[0]}.txt", yolo_data)
->>>>>>> main
 
             zip_buffer.seek(0)
 
@@ -789,7 +661,6 @@ def main():
                 mime="application/zip",
                 help="ZIP file containing original images and YOLO annotations for images with detections"
             )
-<<<<<<< HEAD
 
             st.download_button(
                 label="📦 Download Predictions (ZIP)",
@@ -798,8 +669,6 @@ def main():
                 mime="application/zip",
                 help="ZIP with images including predicted bounding boxes"
             )
-=======
->>>>>>> main
             
     
     elif mode == "Live Video":
